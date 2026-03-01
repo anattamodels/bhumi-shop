@@ -43,9 +43,21 @@ export const useProductStore = defineStore('products', () => {
   }
 
   async function addProduct(product) {
+    const productData = {
+      name: product.name,
+      category: product.category,
+      price: parseFloat(product.price) || 0,
+      description: product.description || '',
+      stock: product.stock || 'print-on-demand',
+      image: product.image || '',
+      artist: product.artist || '',
+      info: product.info || '',
+      sizes: product.sizes || null
+    }
+    
     const { data, error } = await supabase
       .from('products')
-      .insert([product])
+      .insert([productData])
       .select()
     
     if (data && data[0]) {
@@ -54,9 +66,21 @@ export const useProductStore = defineStore('products', () => {
   }
 
   async function updateProduct(id, updates) {
+    const productData = {
+      name: updates.name,
+      category: updates.category,
+      price: parseFloat(updates.price) || 0,
+      description: updates.description || '',
+      stock: updates.stock || 'print-on-demand',
+      image: updates.image || '',
+      artist: updates.artist || '',
+      info: updates.info || '',
+      sizes: updates.sizes || null
+    }
+    
     const { data, error } = await supabase
       .from('products')
-      .update(updates)
+      .update(productData)
       .eq('id', id)
       .select()
     
