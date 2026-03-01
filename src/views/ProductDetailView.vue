@@ -72,7 +72,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '../stores/products'
 import { useCartStore } from '../stores/cart'
@@ -81,6 +81,12 @@ const route = useRoute()
 const router = useRouter()
 const productStore = useProductStore()
 const cartStore = useCartStore()
+
+onMounted(async () => {
+  if (productStore.products.length === 0) {
+    await productStore.fetchProducts()
+  }
+})
 
 const product = computed(() => productStore.getProductById(route.params.id))
 const selectedSize = ref(null)

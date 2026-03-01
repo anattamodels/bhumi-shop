@@ -51,12 +51,19 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useProductStore } from '../stores/products'
 
 const route = useRoute()
 const productStore = useProductStore()
+
+onMounted(async () => {
+  if (productStore.products.length === 0) {
+    await productStore.fetchProducts()
+    await productStore.fetchCategories()
+  }
+})
 
 const activeCategory = ref('todos')
 const categories = computed(() => productStore.categories)

@@ -86,10 +86,15 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useProductStore } from '../stores/products'
 
 const productStore = useProductStore()
+
+onMounted(async () => {
+  await productStore.fetchCategories()
+  await productStore.fetchProducts()
+})
 
 const categories = computed(() => productStore.categories)
 const featuredProducts = computed(() => productStore.products.slice(0, 4))
