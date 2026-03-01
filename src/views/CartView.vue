@@ -42,32 +42,32 @@
           <span class="shipping-note">A calcular</span>
         </div>
 
+        <div class="client-data">
+          <h3>Dados do Cliente</h3>
+          <input v-model="clientData.name" placeholder="Nome completo" class="input-field">
+          <input v-model="clientData.email" type="email" placeholder="Email" class="input-field">
+          <input v-model="clientData.phone" placeholder="WhatsApp" class="input-field">
+          <input v-model="clientData.address" placeholder="Endereço de entrega" class="input-field">
+        </div>
+
         <div class="payment-methods">
           <h3>Forma de Pagamento</h3>
           <div class="payment-options">
             <label :class="{ active: cartStore.paymentMethod === 'pix' }">
-              <input 
-                type="radio" 
-                v-model="cartStore.paymentMethod" 
-                value="pix"
-              >
-              <span>PIX</span>
+              <input type="radio" v-model="cartStore.paymentMethod" value="pix">
+              <span>📱 PIX</span>
             </label>
             <label :class="{ active: cartStore.paymentMethod === 'mercadopago' }">
-              <input 
-                type="radio" 
-                v-model="cartStore.paymentMethod" 
-                value="mercadopago"
-              >
-              <span>Mercado Pago</span>
+              <input type="radio" v-model="cartStore.paymentMethod" value="mercadopago">
+              <span>💰 Mercado Pago</span>
             </label>
             <label :class="{ active: cartStore.paymentMethod === 'paypal' }">
-              <input 
-                type="radio" 
-                v-model="cartStore.paymentMethod" 
-                value="paypal"
-              >
-              <span>PayPal</span>
+              <input type="radio" v-model="cartStore.paymentMethod" value="paypal">
+              <span>🅿️ PayPal</span>
+            </label>
+            <label :class="{ active: cartStore.paymentMethod === 'whatsapp' }">
+              <input type="radio" v-model="cartStore.paymentMethod" value="whatsapp">
+              <span>💬 WhatsApp</span>
             </label>
           </div>
         </div>
@@ -80,12 +80,6 @@
         <button class="btn-primary checkout-btn" @click="checkout">
           Finalizar Compra
         </button>
-
-        <div class="payment-icons">
-          <span>💳 PIX</span>
-          <span>💰 Mercado Pago</span>
-          <span>🅿️ PayPal</span>
-        </div>
       </div>
     </div>
 
@@ -95,13 +89,94 @@
         Ver Produtos
       </router-link>
     </div>
+
+    <div v-if="showCheckoutModal" class="modal-overlay" @click.self="showCheckoutModal = false">
+      <div class="modal checkout-modal">
+        <button class="close-btn" @click="showCheckoutModal = false">×</button>
+        
+        <div v-if="checkoutStep === 'form'">
+          <h2>Confirmar Pedido</h2>
+          <div class="order-summary">
+            <p><strong>Itens:</strong> {{ cartStore.totalItems }}</p>
+            <p><strong>Total:</strong> R$ {{ cartStore.totalPrice.toFixed(2) }}</p>
+            <p><strong>Forma de Pagamento:</strong> {{ getPaymentMethodName(cartStore.paymentMethod) }}</p>
+          </div>
+          
+          <button class="btn-primary" @click="processPayment">
+            Confirmar Pedido
+          </button>
+        </div>
+
+        <div v-else-if="checkoutStep === 'pix'" class="payment-instructions">
+          <h2>💳 Pagamento PIX</h2>
+          <p class="total-value">Total: R$ {{ cartStore.totalPrice.toFixed(2) }}</p>
+          
+          <div class="pix-key">
+            <label>Chave PIX:</label>
+            <input readonly :value="pixKey" class="key-input">
+            <button @click="copyPixKey" class="btn-secondary">📋 Copiar Chave</button>
+          </div>
+          
+          <p class="copy-note">Copie a chave PIX acima e faça o pagamento.</p>
+          <p class="instruction">Após pagar, envie o comprovante para:</p>
+          <a :href="whatsappLink" class="btn-primary whatsapp-btn">
+            📱 Enviar Comprovante
+          </a>
+        </div>
+
+        <div v-else-if="checkoutStep === 'mercadopago'" class="payment-instructions">
+          <h2>💰 Mercado Pago</h2>
+          <p class="total-value">Total: R$ {{ cartStore.totalPrice.toFixed(2) }}</p>
+          <p>Clique no botão abaixo para pagar via Mercado Pago:</p>
+          <button class="btn-primary mercadopago-btn" @click="payWithMercadoPago">
+            Pagar com Mercado Pago
+          </button>
+        </div>
+
+        <div v-else-if="checkoutStep === 'paypal'" class="payment-instructions">
+          <h2>🅿️ PayPal</h2>
+          <p class="total-value">Total: R$ {{ cartStore.totalPrice.toFixed(2) }}</p>
+          <button class="btn-primary paypal-btn" @click="payWithPayPal">
+            Pagar com PayPal
+          </button>
+        </div>
+
+        <div v-else-if="checkoutStep === 'whatsapp'" class="payment-instructions">
+          <h2>💬 WhatsApp</h2>
+          <p>Seu pedido será enviado via WhatsApp:</p>
+          <a :href="whatsappOrderLink" class="btn-primary whatsapp-btn">
+            📱 Enviar Pedido
+          </a>
+        </div>
+
+        <div v-else-if="checkoutStep === 'success'" class="success-message">
+          <h2>✅ Pedido Enviado!</h2>
+          <p>Obrigado pela sua compra! Em breve entraremos em contato.</p>
+          <router-link to="/produtos" class="btn-secondary">
+            Continuar Comprando
+          </router-link>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
+import { ref, computed } from 'vue'
 import { useCartStore } from '../stores/cart'
 
 const cartStore = useCartStore()
+
+const showCheckoutModal = ref(false)
+const checkoutStep = ref('form')
+const pixKey = 'sua-chave-pix@email.com'
+
+const clientData = ref({
+  name: '',
+  email: '',
+  phone: '',
+  address: ''
+})
 
 function updateQty(productId, quantity) {
   cartStore.updateQuantity(productId, quantity)
@@ -111,9 +186,69 @@ function removeItem(productId) {
   cartStore.removeItem(productId)
 }
 
-function checkout() {
-  alert(`Finalizando compra com ${cartStore.paymentMethod.toUpperCase()}\nTotal: R$ ${cartStore.totalPrice.toFixed(2)}`)
+function getPaymentMethodName(method) {
+  const names = {
+    pix: 'PIX',
+    mercadopago: 'Mercado Pago',
+    paypal: 'PayPal',
+    whatsapp: 'WhatsApp'
+  }
+  return names[method] || method
 }
+
+function checkout() {
+  if (!clientData.value.name || !clientData.value.phone) {
+    alert('Por favor, preencha nome e WhatsApp.')
+    return
+  }
+  showCheckoutModal.value = true
+  checkoutStep.value = 'form'
+}
+
+function processPayment() {
+  checkoutStep.value = cartStore.paymentMethod
+}
+
+function copyPixKey() {
+  navigator.clipboard.writeText(pixKey)
+  alert('Chave PIX copiada!')
+}
+
+function payWithMercadoPago() {
+  const total = cartStore.totalPrice.toFixed(2).replace('.', '')
+  const link = `https://www.mercadopago.com.br/checkout/v1/payment?pref_id=SEU_ID_AQUI`
+  alert('Em breve:链接 para pagamento Mercado Pago')
+  checkoutStep.value = 'success'
+  cartStore.clearCart()
+}
+
+function payWithPayPal() {
+  alert('Em breve:链接 para pagamento PayPal')
+  checkoutStep.value = 'success'
+  cartStore.clearCart()
+}
+
+const whatsappLink = computed(() => {
+  const phone = '5511999999999'
+  const msg = `Olá, fiz um pagamento PIX de R$ ${cartStore.totalPrice.toFixed(2)}. Segue comprovante.`
+  return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+})
+
+const whatsappOrderLink = computed(() => {
+  const phone = '5511999999999'
+  let msg = `🛒 *Novo Pedido*\n\n`
+  msg += `*Cliente:* ${clientData.value.name}\n`
+  msg += `*WhatsApp:* ${clientData.value.phone}\n`
+  msg += `*Endereço:* ${clientData.value.address}\n\n`
+  msg += `*Itens:*\n`
+  cartStore.items.forEach(item => {
+    msg += `- ${item.name} (${item.quantity}x) - R$ ${(item.price * item.quantity).toFixed(2)}\n`
+  })
+  msg += `\n*Total:* R$ ${cartStore.totalPrice.toFixed(2)}\n`
+  msg += `*Pagamento:* ${getPaymentMethodName(cartStore.paymentMethod)}`
+  
+  return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+})
 </script>
 
 <style scoped>
@@ -130,7 +265,7 @@ function checkout() {
 
 .cart-layout {
   display: grid;
-  grid-template-columns: 1fr 350px;
+  grid-template-columns: 1fr 380px;
   gap: 3rem;
   align-items: start;
 }
@@ -258,6 +393,36 @@ function checkout() {
   font-style: italic;
 }
 
+.client-data {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+
+.client-data h3 {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 1rem;
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 4px;
+}
+
+.input-field:focus {
+  border-color: var(--accent-green);
+  outline: none;
+}
+
 .payment-methods {
   margin: 1.5rem 0;
 }
@@ -322,15 +487,6 @@ function checkout() {
   font-size: 1.1rem;
 }
 
-.payment-icons {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  margin-top: 1rem;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
 .empty-cart {
   text-align: center;
   padding: 4rem;
@@ -340,6 +496,120 @@ function checkout() {
   font-size: 1.25rem;
   color: var(--text-secondary);
   margin-bottom: 2rem;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2rem;
+  width: 90%;
+  max-width: 500px;
+  position: relative;
+}
+
+.close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.checkout-modal h2 {
+  margin-bottom: 1.5rem;
+  color: var(--accent-green);
+}
+
+.order-summary {
+  background: var(--bg-secondary);
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.order-summary p {
+  margin: 0.5rem 0;
+}
+
+.payment-instructions {
+  text-align: center;
+}
+
+.total-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent-green);
+  margin: 1rem 0;
+}
+
+.pix-key {
+  margin: 1.5rem 0;
+}
+
+.pix-key label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+}
+
+.key-input {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.copy-note {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 1rem 0;
+}
+
+.instruction {
+  color: var(--text-secondary);
+  margin: 1rem 0;
+}
+
+.whatsapp-btn, .mercadopago-btn, .paypal-btn {
+  display: block;
+  width: 100%;
+  padding: 1rem;
+  margin-top: 1rem;
+  font-size: 1rem;
+}
+
+.success-message {
+  text-align: center;
+}
+
+.success-message h2 {
+  color: var(--accent-green);
+  margin-bottom: 1rem;
+}
+
+.success-message p {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
 }
 
 @media (max-width: 900px) {
