@@ -90,11 +90,11 @@
       </router-link>
     </div>
 
-    <div v-if="showCheckoutModal" class="modal-overlay" @click.self="showCheckoutModal = false">
+    <div v-if="showCheckoutModal" class="modal-overlay" @click.self="closeModal">
       <div class="modal checkout-modal">
-        <button class="close-btn" @click="showCheckoutModal = false">×</button>
+        <button class="close-btn" @click="closeModal">×</button>
         
-        <div v-if="checkoutStep === 'form'">
+        <div v-if="checkoutStep === 'form'" class="checkout-form">
           <h2>Confirmar Pedido</h2>
           <div class="order-summary">
             <p><strong>Itens:</strong> {{ cartStore.totalItems }}</p>
@@ -107,24 +107,39 @@
           </button>
         </div>
 
-        <div v-else-if="checkoutStep === 'pix'" class="payment-instructions">
+        <div v-else-if="checkoutStep === 'pix'" class="payment-pix">
           <h2>💳 Pagamento PIX</h2>
           <p class="total-value">Total: R$ {{ cartStore.totalPrice.toFixed(2) }}</p>
           
-          <div class="pix-key">
-            <label>Chave PIX:</label>
-            <input readonly :value="pixKey" class="key-input">
-            <button @click="copyPixKey" class="btn-secondary">📋 Copiar Chave</button>
+          <div class="pix-qrcode" v-if="pixQRCode">
+            <img :src="pixQRCode" alt="QR Code PIX" class="qrcode-img">
           </div>
           
-          <p class="copy-note">Copie a chave PIX acima e faça o pagamento.</p>
-          <p class="instruction">Após pagar, envie o comprovante para:</p>
-          <a :href="whatsappLink" class="btn-primary whatsapp-btn">
-            📱 Enviar Comprovante
-          </a>
+          <div class="pix-key-section">
+            <label>Ou copie a chave PIX:</label>
+            <div class="key-copy">
+              <input readonly :value="shopConfig.pixKey" class="key-input">
+              <button @click="copyPixKey" class="btn-secondary">📋 Copiar</button>
+            </div>
+          </div>
+
+          <div class="pix-instructions">
+            <p>1. Escaneie o QR Code ou copie a chave PIX</p>
+            <p>2. Faça o pagamento de <strong>R$ {{ cartStore.totalPrice.toFixed(2) }}</strong></p>
+            <p>3. Clique em "Já Paguei" após confirmar o pagamento</p>
+          </div>
+
+          <div class="pix-actions">
+            <button class="btn-primary" @click="confirmPixPayment">
+              ✅ Já Paguei
+            </button>
+            <button class="btn-secondary" @click="sendPixReceipt">
+              📱 Enviar Comprovante
+            </button>
+          </div>
         </div>
 
-        <div v-else-if="checkoutStep === 'mercadopago'" class="payment-instructions">
+        <div v-else-if="checkoutStep === 'mercadopago'" class="payment-mercadopago">
           <h2>💰 Mercado Pago</h2>
           <p class="total-value">Total: R$ {{ cartStore.totalPrice.toFixed(2) }}</p>
           <p>Clique no botão abaixo para pagar via Mercado Pago:</p>
@@ -133,7 +148,7 @@
           </button>
         </div>
 
-        <div v-else-if="checkoutStep === 'paypal'" class="payment-instructions">
+        <div v-else-if="checkoutStep === 'paypal'" class="payment-paypal">
           <h2>🅿️ PayPal</h2>
           <p class="total-value">Total: R$ {{ cartStore.totalPrice.toFixed(2) }}</p>
           <button class="btn-primary paypal-btn" @click="payWithPayPal">
@@ -141,7 +156,7 @@
           </button>
         </div>
 
-        <div v-else-if="checkoutStep === 'whatsapp'" class="payment-instructions">
+        <div v-else-if="checkoutStep === 'whatsapp'" class="payment-whatsapp">
           <h2>💬 WhatsApp</h2>
           <p>Seu pedido será enviado via WhatsApp:</p>
           <a :href="whatsappOrderLink" class="btn-primary whatsapp-btn">
@@ -150,8 +165,14 @@
         </div>
 
         <div v-else-if="checkoutStep === 'success'" class="success-message">
-          <h2>✅ Pedido Enviado!</h2>
+          <div class="success-icon">✅</div>
+          <h2>Pedido Enviado!</h2>
+          <p class="order-number">Número do pedido: #{{ orderNumber }}</p>
           <p>Obrigado pela sua compra! Em breve entraremos em contato.</p>
+          <div class="success-details">
+            <p><strong>Total:</strong> R$ {{ cartStore.totalPrice.toFixed(2) }}</p>
+            <p><strong>Pagamento:</strong> {{ getPaymentMethodName(cartStore.paymentMethod) }}</p>
+          </div>
           <router-link to="/produtos" class="btn-secondary">
             Continuar Comprando
           </router-link>
@@ -162,14 +183,25 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useCartStore } from '../stores/cart'
 
 const cartStore = useCartStore()
 
 const showCheckoutModal = ref(false)
 const checkoutStep = ref('form')
-const pixKey = 'sua-chave-pix@email.com'
+const orderNumber = ref('')
+const pixQRCode = ref('')
+
+const CONFIG_KEY = 'bhumi-shop-config'
+const defaultConfig = {
+  pixKey: 'sua-chave-pix@email.com',
+  whatsapp: '5511999999999',
+  paypalEmail: '',
+  mercadopagoToken: ''
+}
+
+const shopConfig = ref({ ...defaultConfig })
 
 const clientData = ref({
   name: '',
@@ -178,12 +210,40 @@ const clientData = ref({
   address: ''
 })
 
+onMounted(() => {
+  loadConfig()
+  window.addEventListener('storage', loadConfig)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('storage', loadConfig)
+})
+
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem(CONFIG_KEY)
+    if (saved) {
+      shopConfig.value = { ...defaultConfig, ...JSON.parse(saved) }
+    }
+  } catch (e) {
+    console.error('Erro ao carregar config:', e)
+  }
+}
+
 function updateQty(productId, quantity) {
   cartStore.updateQuantity(productId, quantity)
 }
 
 function removeItem(productId) {
   cartStore.removeItem(productId)
+}
+
+function closeModal() {
+  showCheckoutModal.value = false
+  checkoutStep.value = 'form'
+  if (checkoutStep.value === 'success') {
+    cartStore.clearCart()
+  }
 }
 
 function getPaymentMethodName(method) {
@@ -206,36 +266,87 @@ function checkout() {
 }
 
 function processPayment() {
+  if (cartStore.paymentMethod === 'pix') {
+    generatePixQRCode()
+  }
   checkoutStep.value = cartStore.paymentMethod
 }
 
+function generatePixQRCode() {
+  const total = cartStore.totalPrice.toFixed(2).replace('.', '')
+  const pixValue = shopConfig.value.pixKey
+  const merchantName = 'BHUMI SHOP'
+  const merchantCity = 'SAO PAULO'
+  
+  const payload = generatePixPayload(pixValue, total, merchantName, merchantCity)
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(payload)}`
+  pixQRCode.value = qrCodeUrl
+}
+
+function generatePixPayload(pixKey, amount, merchantName, merchantCity) {
+  const format = '000201'
+  const gui = '0014BR.GOV.BCB.PIX01'
+  const key = pixKey.length > 99 ? pixKey.substring(0, 99) : pixKey
+  const keyLength = String(key.length).padStart(2, '0')
+  const merchantAccountInfo = `${gui}${keyLength}${key}52040000`
+  const payloadFormat = '6304'
+  
+  const payload = `${format}${merchantAccountInfo}01${amount.toString().padStart(10, '0')}0266${merchantName}26${merchantCity}${payloadFormat}`
+  
+  const crc = calculateCRC16(payload)
+  return payload + crc
+}
+
+function calculateCRC16(data) {
+  let crc = 0xFFFF
+  for (let i = 0; i < data.length; i++) {
+    crc ^= data.charCodeAt(i)
+    for (let j = 0; j < 8; j++) {
+      if (crc & 0x0001) {
+        crc = (crc >> 1) ^ 0xA001
+      } else {
+        crc = crc >> 1
+      }
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0')
+}
+
 function copyPixKey() {
-  navigator.clipboard.writeText(pixKey)
+  navigator.clipboard.writeText(shopConfig.value.pixKey)
   alert('Chave PIX copiada!')
 }
 
+function confirmPixPayment() {
+  generateOrderNumber()
+  checkoutStep.value = 'success'
+  cartStore.clearCart()
+}
+
+function sendPixReceipt() {
+  const phone = shopConfig.value.whatsapp
+  const msg = `Olá, realizei o pagamento PIX de R$ ${cartStore.totalPrice.toFixed(2)}. Segue comprovante.`
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+}
+
 function payWithMercadoPago() {
-  const total = cartStore.totalPrice.toFixed(2).replace('.', '')
-  const link = `https://www.mercadopago.com.br/checkout/v1/payment?pref_id=SEU_ID_AQUI`
-  alert('Em breve:链接 para pagamento Mercado Pago')
+  alert('Em breve: integração com Mercado Pago')
   checkoutStep.value = 'success'
   cartStore.clearCart()
 }
 
 function payWithPayPal() {
-  alert('Em breve:链接 para pagamento PayPal')
+  alert('Em breve: integração com PayPal')
   checkoutStep.value = 'success'
   cartStore.clearCart()
 }
 
-const whatsappLink = computed(() => {
-  const phone = '5511999999999'
-  const msg = `Olá, fiz um pagamento PIX de R$ ${cartStore.totalPrice.toFixed(2)}. Segue comprovante.`
-  return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
-})
+function generateOrderNumber() {
+  orderNumber.value = Date.now().toString().slice(-8)
+}
 
 const whatsappOrderLink = computed(() => {
-  const phone = '5511999999999'
+  const phone = shopConfig.value.whatsapp
   let msg = `🛒 *Novo Pedido*\n\n`
   msg += `*Cliente:* ${clientData.value.name}\n`
   msg += `*WhatsApp:* ${clientData.value.phone}\n`
@@ -600,6 +711,140 @@ const whatsappOrderLink = computed(() => {
 
 .success-message {
   text-align: center;
+}
+
+.success-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.order-number {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--accent-green);
+  margin-bottom: 1rem;
+}
+
+.success-details {
+  background: var(--bg-secondary);
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  text-align: left;
+}
+
+.success-details p {
+  margin: 0.5rem 0;
+}
+
+.pix-qrcode {
+  display: flex;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+
+.qrcode-img {
+  width: 200px;
+  height: 200px;
+  border-radius: 8px;
+  border: 2px solid var(--accent-green);
+}
+
+.pix-key-section {
+  margin: 1.5rem 0;
+}
+
+.pix-key-section label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+}
+
+.key-copy {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.key-copy .key-input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.pix-instructions {
+  background: var(--bg-secondary);
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  text-align: left;
+}
+
+.pix-instructions p {
+  margin: 0.5rem 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.pix-instructions strong {
+  color: var(--accent-green);
+}
+
+.pix-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.pix-actions .btn-primary,
+.pix-actions .btn-secondary {
+  width: 100%;
+}
+
+.payment-pix,
+.payment-mercadopago,
+.payment-paypal,
+.payment-whatsapp {
+  text-align: center;
+}
+
+.payment-pix h2,
+.payment-mercadopago h2,
+.payment-paypal h2,
+.payment-whatsapp h2 {
+  color: var(--accent-green);
+  margin-bottom: 1rem;
+}
+
+.payment-pix p,
+.payment-mercadopago p,
+.payment-paypal p,
+.payment-whatsapp p {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 900px) {
+  .cart-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .cart-summary {
+    position: static;
+  }
+
+  .cart-item {
+    grid-template-columns: 60px 1fr auto;
+  }
+  
+  .item-quantity,
+  .item-total {
+    grid-column: 2;
+  }
+  
+  .remove-btn {
+    grid-column: 3;
+    grid-row: 1 / 3;
+  }
 }
 
 .success-message h2 {

@@ -5,6 +5,7 @@ import ProductDetailView from '../views/ProductDetailView.vue'
 import CartView from '../views/CartView.vue'
 import AboutView from '../views/AboutView.vue'
 import VideosView from '../views/VideosView.vue'
+import ConfigView from '../views/ConfigView.vue'
 import AdminView from '../views/AdminView.vue'
 
 const router = createRouter({
@@ -41,9 +42,18 @@ const router = createRouter({
       component: VideosView
     },
     {
+      path: '/config',
+      name: 'config',
+      component: ConfigView
+    },
+    {
       path: '/admin',
       name: 'admin',
       component: AdminView
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/'
     }
   ],
   scrollBehavior(to, from, savedPosition) {

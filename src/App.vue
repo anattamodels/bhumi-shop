@@ -2,7 +2,9 @@
   <div class="app-container">
     <header class="app-header">
       <div class="logo">
-        <h1>BHUMI<span class="accent">SHOP</span></h1>
+        <router-link to="/">
+          <h1>BHUMI<span class="accent">SHOP</span></h1>
+        </router-link>
       </div>
       <nav class="main-nav">
         <router-link to="/">Início</router-link>
@@ -10,10 +12,15 @@
         <router-link to="/videos">Vídeos</router-link>
         <router-link to="/sobre">Sobre</router-link>
       </nav>
-      <router-link to="/carrinho" class="cart-icon">
-        <span class="cart-count" v-if="cartCount > 0">{{ cartCount }}</span>
-        🛒
-      </router-link>
+      <div class="header-actions">
+        <router-link to="/carrinho" class="cart-icon">
+          <span class="cart-count" v-if="cartCount > 0">{{ cartCount }}</span>
+          🛒
+        </router-link>
+        <router-link to="/config" class="config-icon" title="Configurações">
+          ⚙️
+        </router-link>
+      </div>
     </header>
     
     <main class="app-main">
@@ -112,6 +119,24 @@ const cartCount = computed(() => cartStore.items.length)
   font-size: 1.5rem;
   cursor: pointer;
   position: relative;
+  text-decoration: none;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.config-icon {
+  font-size: 1.3rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.config-icon:hover {
+  color: var(--accent-purple);
 }
 
 .cart-count {

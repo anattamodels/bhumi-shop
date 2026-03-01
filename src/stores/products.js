@@ -14,7 +14,7 @@ export const useProductStore = defineStore('products', () => {
   const getProductsByCategory = computed(() => {
     return (category) => {
       if (category === 'todos') return products.value
-      return products.value.filter(p => p.category === category)
+      return products.value.filter(p => p.category && p.category.toString() === category.toString())
     }
   })
 
